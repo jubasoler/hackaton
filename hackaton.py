@@ -5,6 +5,7 @@ from io import BytesIO
 from dotenv import load_dotenv
 from tqdm import tqdm
 import os
+import io
 import sys
 import mediapipe as mp
 import cv2
@@ -88,16 +89,19 @@ def detect_sharp_objects(video_path, output_path, log_path):
         # Ler um frame do vídeo
         ret, frame = cap.read()        
         
-        cv2.imwrite("frame%d.jpg" % i, frame)
-        
         # Se não conseguiu ler o frame (final do vídeo), sair do loop
         if not ret:
             break
 
-        image_file = open("frame%d.jpg" % i, 'rb')
+        imagem_pil = Image.fromarray(frame)
+        imagem_em_memoria = io.BytesIO()
+        formato = "JPEG"
+        imagem_pil.save(imagem_em_memoria, format=formato)
+        imagem_em_memoria.seek(0)
+        altura, largura, c = frame.shape
 
         # Enviar solicitação POST ao serviço VISION já treinado na AZURE
-        response = requests.post(ENDPOINT, headers=headers, data=image_file)
+        response = requests.post(ENDPOINT, headers=headers, data=imagem_em_memoria)
 
         # Verificar e imprimir a resposta
         if response.status_code == 200:
@@ -111,11 +115,15 @@ def detect_sharp_objects(video_path, output_path, log_path):
         for obj in objetos['predictions']:
 
             probability =  obj['probability']
+            tag_name = obj['tagName']
             if float(probability) >= 0.5:
                 # Obter a caixa delimitadora do objeto
-                x, y, w, h = obj['boundingBox']['left'], obj['boundingBox']['top'], obj['boundingBox']['width'], obj['boundingBox']['height']
+                x, y, w, h = obj['boundingBox']['left']* largura, obj['boundingBox']['top']* altura, obj['boundingBox']['width']* largura, obj['boundingBox']['height'] * altura
+
+                cv2.rectangle(frame, (int(x), int(y)), (int(x)+int(w), int(y)+int(h)), (0, 255, 0), 1)
+                cv2.putText(frame, tag_name, (int(x), int(y)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 1)
                 
-                file.write("Frame #{} - Predição com probabilidade de {} está localizada em -> Topo: {}, Esquerda: {}, Fundo: {}, Direita: {}. TAG: {}".format(i, probability, x, y, w, h, obj['tagName'])) 
+                file.write("Frame #{} - Predição com probabilidade de {} está localizada em -> Topo: {}, Esquerda: {}, Fundo: {}, Direita: {}. TAG: {}".format(i, probability, x, y, w, h, tag_name)) 
                 file.write("\n") 
 
         # Escrever o frame processado no vídeo de saída
