@@ -89,8 +89,6 @@ def detect_sharp_objects(video_path, output_path, log_path):
         # Ler um frame do vídeo
         ret, frame = cap.read()        
         
-        #cv2.imwrite("frame%d.jpg" % i, frame)
-        
         # Se não conseguiu ler o frame (final do vídeo), sair do loop
         if not ret:
             break
